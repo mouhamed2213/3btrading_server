@@ -1,0 +1,502 @@
+// 3B Trading — modèle de données
+// Montants en FCFA (entiers, pas de décimales). Les prix de location/chantier sont HT, la TVA est ajoutée à la facturation.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────── Utilisateurs ─────────────
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         Role     @default(STAFF)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ───────────── Clients ─────────────
+
+enum CustomerType {
+  ENTREPRISE
+  PARTICULIER
+  PARTENAIRE
+}
+
+// COMPTANT : paiement avant la sortie de machine. A_TERME : facturation fin de mois (réservé aux partenaires).
+enum PaymentTerms {
+  COMPTANT
+  A_TERME
+}
+
+model Customer {
+  id           String       @id @default(cuid())
+  name         String
+  type         CustomerType @default(ENTREPRISE)
+  paymentTerms PaymentTerms @default(COMPTANT)
+  phone        String
+  email        String?
+  ninea        String?
+  address      String?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  reservations Reservation[]
+  worksites    Worksite[]
+  invoices     Invoice[]
+  maintenance  MaintenanceOrder[]
+
+  @@index([name])
+}
+
+// ───────────── Flotte & engins (location / vente) ─────────────
+
+enum EquipmentCategory {
+  CAMION
+  PELLE_HYDRAULIQUE
+  CHARGEUR_TRACTOPELLE
+  BULLDOZER
+  MINI_PELLE_COMPACTEUR
+}
+
+enum EquipmentStatus {
+  DISPONIBLE
+  EN_LOCATION
+  MAINTENANCE
+  VENDU
+}
+
+enum MeterUnit {
+  HEURES
+  KM
+}
+
+model Equipment {
+  id           String            @id @default(cuid())
+  code         String            @unique // 3BT-0001
+  name         String
+  category     EquipmentCategory
+  brand        String
+  model        String?
+  year         Int?
+  serialNumber String?           @unique
+  meterValue   Int               @default(0)
+  meterUnit    MeterUnit         @default(HEURES)
+  powerHp      Int?
+  location     String            @default("Dakar")
+  description  String?
+  status       EquipmentStatus   @default(DISPONIBLE)
+
+  // Location clé en main (opérateur + carburant inclus)
+  isRentable          Boolean @default(true)
+  dailyRate           Int? // tarif journalier
+  rotationRate        Int? // tarif par rotation (camions-bennes)
+  degressiveFromDays  Int     @default(7)
+  degressiveDailyRate Int? // tarif journalier appliqué dès `degressiveFromDays` jours
+
+  // Vente
+  isForSale Boolean @default(false)
+  salePrice Int?
+
+  isPublished Boolean  @default(false) // visible sur le site public
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  images       Image[]
+  reservations Reservation[]
+  maintenance  MaintenanceOrder[]
+  entries      WorksiteEntry[]
+
+  @@index([category, status])
+  @@index([brand])
+}
+
+// ───────────── Pièces détachées ─────────────
+
+enum PartFamily {
+  MOTEUR
+  HYDRAULIQUE
+  FILTRATION
+  ELECTRICITE
+  AUTRE
+}
+
+enum PartCondition {
+  NEUF
+  OCCASION
+}
+
+model Part {
+  id                String        @id @default(cuid())
+  name              String
+  brand             String
+  family            PartFamily
+  oemReference      String? // numéro constructeur
+  compatibleModels  String[] // ex. ["CAT 320D", "PC200"]
+  condition         PartCondition @default(NEUF)
+  isOriginal        Boolean       @default(true)
+  price             Int
+  stockQuantity     Int           @default(0)
+  lowStockThreshold Int           @default(2)
+  warrantyMonths    Int?
+  description       String?
+  isPublished       Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  images       Image[]
+  invoiceLines InvoiceLine[]
+
+  @@index([brand])
+  @@index([family])
+  @@index([oemReference])
+}
+
+// ───────────── Photos (fichiers dans Supabase Storage) ─────────────
+
+model Image {
+  id          String   @id @default(cuid())
+  url         String
+  storagePath String? // null = image externe (ex. données de démo)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  partId      String?
+  part        Part?      @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId])
+  @@index([partId])
+}
+
+// ───────────── Réservations (locations) ─────────────
+
+enum ReservationStatus {
+  EN_ATTENTE
+  CONFIRMEE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+enum RentalPricing {
+  JOURNALIER
+  ROTATION
+}
+
+model Reservation {
+  id           String            @id @default(cuid())
+  reference    String            @unique // RES-2026-001
+  customerId   String
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  equipmentId  String
+  equipment    Equipment         @relation(fields: [equipmentId], references: [id])
+  startDate    DateTime          @db.Date
+  endDate      DateTime          @db.Date
+  pricing      RentalPricing
+  quantity     Int // nombre de jours ou de rotations
+  unitPrice    Int // tarif appliqué (après dégressivité éventuelle)
+  totalAmount  Int // HT
+  isDegressive Boolean           @default(false)
+  siteLocation String?
+  operatorName String?
+  status       ReservationStatus @default(EN_ATTENTE)
+  notes        String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  invoices Invoice[]
+
+  @@index([equipmentId, startDate, endDate])
+  @@index([customerId])
+  @@index([status])
+}
+
+// ───────────── Chantiers (prestations de terrassement) ─────────────
+
+enum WorkType {
+  TERRASSEMENT_MASSE
+  DECAPAGE
+  FOUILLES_PROFONDES
+  FOUILLES_TRANCHEES
+  ENROCHEMENT_REMBLAYAGE
+  ASSAINISSEMENT
+  FONDATIONS
+}
+
+enum WorksitePricing {
+  FORFAIT
+  VOLUME
+  HORAIRE
+  JOURNEE
+}
+
+enum WorksiteStatus {
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ANNULE
+}
+
+model Worksite {
+  id                String          @id @default(cuid())
+  reference         String          @unique // CHA-2026-001
+  name              String
+  customerId        String
+  customer          Customer        @relation(fields: [customerId], references: [id])
+  location          String
+  workType          WorkType
+  pricing           WorksitePricing
+  unitPrice         Int // FORFAIT : prix global · VOLUME : prix/m³ · HORAIRE : prix/h · JOURNEE : prix/jour
+  estimatedQuantity Float? // m³, heures ou jours estimés
+  budget            Int?
+  startDate         DateTime        @db.Date
+  endDate           DateTime?       @db.Date
+  status            WorksiteStatus  @default(PLANIFIE)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  entries  WorksiteEntry[]
+  invoices Invoice[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+// Suivi quotidien : quantité réalisée (m³, heures ou jours selon le mode de tarification)
+model WorksiteEntry {
+  id          String     @id @default(cuid())
+  worksiteId  String
+  worksite    Worksite   @relation(fields: [worksiteId], references: [id], onDelete: Cascade)
+  date        DateTime   @db.Date
+  quantity    Float
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  notes       String?
+  createdAt   DateTime   @default(now())
+
+  @@index([worksiteId, date])
+}
+
+// ───────────── Facturation ─────────────
+
+enum InvoiceType {
+  PROFORMA
+  ACOMPTE
+  DEFINITIVE
+}
+
+enum InvoiceStatus {
+  A_VALIDER // proforma en attente
+  CONVERTIE // proforma transformée en acompte / facture
+  IMPAYEE
+  PARTIELLE
+  PAYEE
+  ANNULEE
+}
+
+enum InvoiceCategory {
+  LOCATION
+  CHANTIER
+  VENTE
+}
+
+model Invoice {
+  id            String          @id @default(cuid())
+  number        String          @unique // FAC-2026-001
+  type          InvoiceType
+  status        InvoiceStatus
+  category      InvoiceCategory
+  customerId    String
+  customer      Customer        @relation(fields: [customerId], references: [id])
+  reservationId String?
+  reservation   Reservation?    @relation(fields: [reservationId], references: [id])
+  worksiteId    String?
+  worksite      Worksite?       @relation(fields: [worksiteId], references: [id])
+  issueDate     DateTime        @default(now()) @db.Date
+  dueDate       DateTime        @db.Date
+  subtotal      Int
+  taxRate       Int             @default(18)
+  taxAmount     Int
+  total         Int
+  paidAmount    Int             @default(0)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  lines     InvoiceLine[]
+  payments  Payment[]
+  reminders InvoiceReminder[]
+
+  @@index([customerId])
+  @@index([status, dueDate])
+  @@index([reservationId])
+  @@index([worksiteId])
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  label       String
+  quantity    Int
+  unitPrice   Int // peut être négatif (déduction d'acompte)
+  total       Int
+  // Lignes de vente : déclenchent le décompte de stock / le passage en "VENDU" à la facture définitive
+  partId      String?
+  part        Part?   @relation(fields: [partId], references: [id])
+  equipmentId String?
+}
+
+enum PaymentMethod {
+  ESPECES
+  WAVE
+  ORANGE_MONEY
+}
+
+// Chaque paiement génère un reçu (receiptNumber)
+model Payment {
+  id             String        @id @default(cuid())
+  receiptNumber  String        @unique // REC-2026-001
+  invoiceId      String
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id])
+  amount         Int
+  method         PaymentMethod
+  transactionRef String?
+  paidAt         DateTime      @default(now())
+  notes          String?
+  createdAt      DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@index([paidAt])
+}
+
+enum ReminderChannel {
+  TELEPHONE
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+model InvoiceReminder {
+  id        String          @id @default(cuid())
+  invoiceId String
+  invoice   Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  channel   ReminderChannel
+  note      String?
+  sentAt    DateTime        @default(now())
+
+  @@index([invoiceId])
+}
+
+// ───────────── Maintenance & interventions ─────────────
+
+enum MaintenanceKind {
+  INTERNE // entretien de la flotte
+  REPARATION_CLIENT // prestation mécanique facturée
+  SAV // garantie après vente
+}
+
+enum MaintenanceType {
+  ENTRETIEN_PERIODIQUE
+  VIDANGE
+  REPARATION_MECANIQUE
+  HYDRAULIQUE
+  ELECTRICITE
+}
+
+enum MaintenanceStatus {
+  PLANIFIEE
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+model MaintenanceOrder {
+  id              String            @id @default(cuid())
+  reference       String            @unique // MAI-2026-001
+  kind            MaintenanceKind
+  type            MaintenanceType
+  status          MaintenanceStatus @default(PLANIFIEE)
+  equipmentId     String? // INTERNE : engin de la flotte · SAV : engin vendu
+  equipment       Equipment?        @relation(fields: [equipmentId], references: [id])
+  customerId      String? // REPARATION_CLIENT et SAV
+  customer        Customer?         @relation(fields: [customerId], references: [id])
+  externalMachine String? // machine d'un client externe (REPARATION_CLIENT)
+  scheduledDate   DateTime          @db.Date
+  startedAt       DateTime?
+  completedAt     DateTime?
+  technician      String?
+  meterReading    Int?
+  estimatedCost   Int?
+  actualCost      Int?
+  description     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, scheduledDate])
+  @@index([equipmentId])
+}
+
+// ───────────── Demandes entrantes (site public) ─────────────
+
+enum InquiryType {
+  LOCATION
+  TRAVAUX
+  ACHAT
+  PIECE
+  CONTACT
+}
+
+enum InquiryStatus {
+  NOUVELLE
+  EN_COURS
+  TRAITEE
+}
+
+model Inquiry {
+  id               String        @id @default(cuid())
+  reference        String        @unique // DEM-2026-001
+  type             InquiryType
+  status           InquiryStatus @default(NOUVELLE)
+  name             String
+  phone            String
+  email            String?
+  message          String?
+  desiredStartDate DateTime?     @db.Date
+  durationRange    String? // "1-3" | "4-7" | "7+"
+  siteLocation     String?
+  productLabel     String? // produit concerné (libellé affiché au moment de la demande)
+  equipmentId      String?
+  partId           String?
+  internalNote     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// ───────────── Compteurs de références (RES-2026-001, FAC-2026-001…) ─────────────
+
+model Sequence {
+  key   String @id // ex. "RES-2026"
+  value Int    @default(0)
+}

@@ -5,7 +5,10 @@ import { customersRouter } from "./modules/customers/customers.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 import { equipmentRouter } from "./modules/equipment/equipment.routes.js";
 import { inquiriesRouter } from "./modules/inquiries/inquiries.routes.js";
-import { invoicesRouter, paymentsRouter } from "./modules/invoices/invoices.routes.js";
+import {
+  invoicesRouter,
+  paymentsRouter,
+} from "./modules/invoices/invoices.routes.js";
 import { maintenanceRouter } from "./modules/maintenance/maintenance.routes.js";
 import { mediaRouter } from "./modules/media/media.routes.js";
 import { partsRouter } from "./modules/parts/parts.routes.js";
@@ -35,4 +38,5 @@ const protectedRoutes: [string, Router][] = [
   ["/inquiries", inquiriesRouter],
   ["/users", usersRouter],
 ];
-for (const [path, router] of protectedRoutes) api.use(path, requireAuth, router);
+for (const [path, router] of protectedRoutes)
+  api.use(path, requireAuth, router);

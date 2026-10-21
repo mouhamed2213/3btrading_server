@@ -1,8 +1,14 @@
 import { z } from "zod";
-import { RentalPricing, ReservationStatus } from "../../generated/prisma/enums.js";
+import {
+  RentalPricing,
+  ReservationStatus,
+} from "../../generated/prisma/enums.js";
 import { paginationQuery } from "../../lib/http.js";
 
-const dates = z.object({ startDate: z.coerce.date(), endDate: z.coerce.date() });
+const dates = z.object({
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+});
 
 export const createReservationBody = dates
   .extend({
@@ -14,7 +20,10 @@ export const createReservationBody = dates
     operatorName: z.string().trim().nullish(),
     notes: z.string().trim().nullish(),
   })
-  .refine((v) => v.endDate >= v.startDate, { message: "La date de fin précède la date de début", path: ["endDate"] });
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "La date de fin précède la date de début",
+    path: ["endDate"],
+  });
 
 export const updateReservationBody = z.object({
   startDate: z.coerce.date().optional(),
@@ -26,7 +35,9 @@ export const updateReservationBody = z.object({
   notes: z.string().trim().nullish(),
 });
 
-export const completeBody = z.object({ meterValue: z.number().int().min(0).optional() });
+export const completeBody = z.object({
+  meterValue: z.number().int().min(0).optional(),
+});
 
 export const listReservationsQuery = paginationQuery.extend({
   status: z.enum(ReservationStatus).optional(),

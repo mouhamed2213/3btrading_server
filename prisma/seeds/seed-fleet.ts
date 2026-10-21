@@ -1,6 +1,6 @@
 // Flotte de démonstration : 20 machines par catégorie (100 au total).
 // Idempotent : une machine est identifiée par son n° de série et n'est jamais créée deux fois.
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaClient } from "../../src/generated/prisma/client.js";
 
 type Category =
   | "PELLE_HYDRAULIQUE"

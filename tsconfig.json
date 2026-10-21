@@ -17,6 +17,6 @@
     "prisma/seed.ts",
     "tests",
     "prisma.config.ts",
-    "src/scripts"
+    "prisma/seeds"
   ]
 }

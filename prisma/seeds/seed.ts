@@ -4,8 +4,9 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import "dotenv/config";
-import { PrismaClient } from "../generated/prisma/client.js";
+import { PrismaClient } from "../../src/generated/prisma/client.js";
 import { seedFleet } from "./seed-fleet.js";
+import { seedParts } from "./seed-part.js";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -15,9 +16,7 @@ const u = (id: string) =>
   `https://images.unsplash.com/${id}?auto=format&fit=crop&w=900&q=80`;
 
 async function main() {
-  const email = (
-    process.env.SEED_ADMIN_EMAIL!
-  ).toLowerCase();
+  const email = process.env.SEED_ADMIN_EMAIL!.toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe123!";
   await prisma.user.upsert({
     where: { email },
@@ -33,6 +32,7 @@ async function main() {
 
   const demo = process.env.SEED_DEMO === "true";
   if (demo || process.env.SEED_FLEET === "true") await seedFleet(prisma);
+  if (demo || process.env.SEED_FLEET === "true") await seedParts(prisma);
   if (!demo) return;
 
   await prisma.customer.createMany({

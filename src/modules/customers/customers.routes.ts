@@ -4,6 +4,7 @@ import { idParam, paged, paginate } from "../../lib/http.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireRole } from "../../middlewares/auth.js";
 import { createCustomerBody, listCustomersQuery, updateCustomerBody } from "./customers.schemas.js";
+import { getCustomerOverview } from "./customers.service.js";
 
 export const customersRouter = Router();
 
@@ -24,6 +25,11 @@ customersRouter.get("/", async (req, res) => {
     prisma.customer.count({ where }),
   ]);
   res.json(paged(data, total, query));
+});
+
+// Dossier client : indicateurs et historique de toutes les activités du client
+customersRouter.get("/:id/overview", async (req, res) => {
+  res.json(await getCustomerOverview(idParam.parse(req.params).id));
 });
 
 customersRouter.get("/:id", async (req, res) => {

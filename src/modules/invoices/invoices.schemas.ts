@@ -68,6 +68,7 @@ export const listInvoicesQuery = paginationQuery.extend({
 
 export const listPaymentsQuery = paginationQuery.extend({
   method: z.enum(PaymentMethod).optional(),
+  customerId: z.string().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
 });

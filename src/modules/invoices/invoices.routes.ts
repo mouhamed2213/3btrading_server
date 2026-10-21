@@ -112,6 +112,7 @@ paymentsRouter.get("/", async (req, res) => {
   const query = listPaymentsQuery.parse(req.query);
   const where: Prisma.PaymentWhereInput = {
     ...(query.method && { method: query.method }),
+    ...(query.customerId && { invoice: { customerId: query.customerId } }),
     ...((query.from || query.to) && { paidAt: { ...(query.from && { gte: query.from }), ...(query.to && { lte: query.to }) } }),
   };
   const [data, total] = await Promise.all([

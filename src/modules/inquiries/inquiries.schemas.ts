@@ -26,5 +26,6 @@ export const updateInquiryBody = z.object({
 export const listInquiriesQuery = paginationQuery.extend({
   status: z.enum(InquiryStatus).optional(),
   type: z.enum(InquiryType).optional(),
+  customerId: z.string().optional(), // demandes du même téléphone / email que ce client
   q: z.string().trim().optional(),
 });

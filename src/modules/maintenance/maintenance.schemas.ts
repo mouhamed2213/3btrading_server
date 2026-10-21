@@ -45,5 +45,6 @@ export const listMaintenanceQuery = paginationQuery.extend({
   status: z.enum(MaintenanceStatus).optional(),
   kind: z.enum(MaintenanceKind).optional(),
   equipmentId: z.string().optional(),
+  customerId: z.string().optional(),
   q: z.string().trim().optional(),
 });

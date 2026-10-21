@@ -2,13 +2,20 @@ import { Router } from "express";
 import { notFound } from "../../lib/errors.js";
 import { idParam, paged, paginate } from "../../lib/http.js";
 import { prisma, Prisma } from "../../lib/prisma.js";
+import { inquiryIdsForCustomer } from "./inquiries.service.js";
 import { listInquiriesQuery, updateInquiryBody } from "./inquiries.schemas.js";
 
 export const inquiriesRouter = Router();
 
 inquiriesRouter.get("/", async (req, res) => {
   const query = listInquiriesQuery.parse(req.query);
+  let ids: string[] | undefined;
+  if (query.customerId) {
+    const customer = await prisma.customer.findUnique({ where: { id: query.customerId }, select: { phone: true, email: true } });
+    ids = customer ? await inquiryIdsForCustomer(customer) : [];
+  }
   const where: Prisma.InquiryWhereInput = {
+    ...(ids && { id: { in: ids } }),
     ...(query.status && { status: query.status }),
     ...(query.type && { type: query.type }),
     ...(query.q && {

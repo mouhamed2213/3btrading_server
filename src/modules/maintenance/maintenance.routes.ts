@@ -29,6 +29,7 @@ maintenanceRouter.get("/", async (req, res) => {
     ...(query.status && { status: query.status }),
     ...(query.kind && { kind: query.kind }),
     ...(query.equipmentId && { equipmentId: query.equipmentId }),
+    ...(query.customerId && { customerId: query.customerId }),
     ...(query.q && {
       OR: [
         { reference: { contains: query.q, mode: "insensitive" } },

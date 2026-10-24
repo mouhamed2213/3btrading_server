@@ -1,9 +1,7 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import { pinoHttp } from "pino-http";
 import { env, isProd } from "./config/env.js";
-import { logger } from "./lib/logger.js";
 import { prisma } from "./lib/prisma.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler.js";
 import { api } from "./routes.js";
@@ -19,7 +17,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(pinoHttp({ logger }));
+// app.use(pinoHttp({ logger }));
 app.use(express.json({ limit: "1mb" }));
 app.use(
   rateLimit({
@@ -38,7 +36,10 @@ app.get("/health", async (_req, res) => {
 app.use("/api", api);
 app.use(notFoundHandler);
 app.use(errorHandler);
-function cors(options: { origin: string[]; credentials: boolean }): express.RequestHandler {
+function cors(options: {
+  origin: string[];
+  credentials: boolean;
+}): express.RequestHandler {
   return (req, res, next) => {
     const requestOrigin = req.get("Origin");
     if (!requestOrigin || !options.origin.includes(requestOrigin)) {
